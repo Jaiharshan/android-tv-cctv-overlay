@@ -10,12 +10,13 @@ import android.view.accessibility.AccessibilityEvent;
 /**
  * Remote-control entry point for the CCTV window.
  *
- *  - Press MENU twice quickly while the window is closed (or not using the remote): it opens and
+ *  - Press MENU (or the Mi remote's "mi" button) twice quickly while the window is closed (or not using the remote): it opens and
  *    takes the remote. All further keys are handled by OverlayService.onKey().
  *  - While the window owns the remote every key is swallowed; otherwise every key passes through
  *    to the foreground app untouched, except the second MENU press of the open combo.
  */
 public class KeyService extends AccessibilityService {
+    private static final int MI_BUTTON = 189;
     private static final long DOUBLE_MS = 450;
 
     private long lastMenuDown = 0;
@@ -39,6 +40,7 @@ public class KeyService extends AccessibilityService {
     @Override
     protected boolean onKeyEvent(KeyEvent e) {
         int key = e.getKeyCode();
+        if (key == MI_BUTTON) key = KeyEvent.KEYCODE_MENU;   // the "mi" button of the Mi remote sends code 189
         boolean down = e.getAction() == KeyEvent.ACTION_DOWN;
         OverlayService svc = OverlayService.instance;
         if (OverlayService.debugKeys && down) Log.i("CamFloat", "key code " + key);
