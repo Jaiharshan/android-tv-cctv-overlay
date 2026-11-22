@@ -1,4 +1,4 @@
-# TV Floating Camera
+# Android TV CCTV Overlay
 
 A small, rounded **picture-in-picture camera window for Android TV**. It floats above whatever is on screen (YouTube, a film, the home screen) so you can keep an eye on a CCTV camera, baby cam, doorbell or any other live video while you watch something else.
 
@@ -61,8 +61,8 @@ Because the camera is decoded by the app (not by the TV's single hardware video 
 ## Quick start
 
 ```bash
-git clone https://github.com/Jaiharshan/tv-floating-camera.git
-cd tv-floating-camera
+git clone https://github.com/Jaiharshan/android-tv-cctv-overlay.git
+cd android-tv-cctv-overlay
 
 # 1. build, install, grant the overlay permission, start
 TV=<tv-ip>:5555 scripts/install.sh
