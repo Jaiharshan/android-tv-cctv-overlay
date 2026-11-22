@@ -4,6 +4,8 @@ A small, rounded **picture-in-picture camera window for Android TV**. It floats 
 
 ![Overview](docs/overview.png)
 
+![Three screens, one remote](docs/remote-controls.svg)
+
 - **Opens only when you want it**: press MENU twice on the TV remote. Nothing runs or decodes while it is closed
 - **Several cameras, four sizes, one remote**: switch camera, resize, or open a full-screen view of all cameras, all with the normal TV remote
 - Always on top, always muted, never steals focus from the app you are using
@@ -26,6 +28,19 @@ A small, rounded **picture-in-picture camera window for Android TV**. It floats 
 ```
  camera ──► recorder (NVR) ──► your home network ──► TV app ──► floating window
                                   (Wi-Fi / LAN)       (this repo)
+```
+
+```mermaid
+flowchart LR
+    CAM["IP camera"] --> NVR["Recorder (NVR)"]
+    NVR -- "RTSP over TCP,<br/>H.264 sub-stream" --> NET(("Home Wi-Fi / LAN"))
+    NET --> EXO["Media3 ExoPlayer<br/>(one per visible camera)"]
+    EXO -- "software-routed video" --> TEX["TextureView<br/>clipped to rounded corners"]
+    TEX --> GLASS["GlassView<br/>frame, label, key help"]
+    GLASS --> OV["Overlay window<br/>drawn above every app"]
+    REMOTE["TV remote"] -- "key presses" --> KEY["KeyService<br/>(accessibility service)"]
+    KEY -- "open / navigate" --> SVC["OverlayService<br/>modes and camera list"]
+    SVC --> OV
 ```
 
 1. The app asks for one video stream over **RTSP** (TCP) using [Media3 ExoPlayer](https://developer.android.com/media/media3/exoplayer).
@@ -95,6 +110,25 @@ Press **MENU twice quickly** to open (on the Mi remote, which has no Menu button
 | | OK or BACK | back to the grid |
 
 The small window gives the remote back by itself after about 15 seconds without a key, so YouTube and everything else behave normally again. Press MENU twice again to take control.
+
+```mermaid
+stateDiagram-v2
+    [*] --> Closed
+    Closed --> Small: Mi x2 (opens, takes the remote)
+    Small --> Small: Left/Right camera, Up/Down size
+    Small --> Move: Mi x1
+    Move --> Small: OK / Back
+    Small --> Grid: OK
+    Grid --> One: OK on the selected camera
+    One --> One: Left/Right next camera
+    One --> Grid: OK / Back
+    Grid --> Small: Back
+    Small --> Idle: Back, or 15 s without a key
+    Idle --> Small: Mi x2
+    Small --> Closed: Mi x2
+```
+
+`Idle` means the window stays on screen but the remote belongs to the app underneath again.
 
 ## Controls (adb, for scripts and testing)
 
