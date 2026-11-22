@@ -4,8 +4,10 @@ A small, rounded **picture-in-picture camera window for Android TV**. It floats 
 
 ![Overview](docs/overview.png)
 
-- Always on top, always muted, never steals the remote's focus
-- Starts by itself when the TV boots, and reconnects if the Wi-Fi or camera drops
+- **Opens only when you want it**: press MENU twice on the TV remote. Nothing runs or decodes while it is closed
+- **Several cameras, four sizes, one remote**: switch camera, resize, or open a full-screen view of all cameras, all with the normal TV remote
+- Always on top, always muted, never steals focus from the app you are using
+- Ready again after the TV boots, and reconnects if the Wi-Fi or camera drops
 - Plays any **RTSP** stream (CCTV cameras, NVRs, IP cameras), or an **HDMI input** of the TV
 - Rounded corners with a slim glass frame; a calm, see-through "frosted glass" card when there is no picture
 - No cloud, no account, no servers: the video goes straight from your camera or recorder to your TV
@@ -30,7 +32,7 @@ A small, rounded **picture-in-picture camera window for Android TV**. It floats 
 2. The picture is decoded **in software inside the app** and drawn on a `TextureView` clipped to a rounded outline.
 3. That view lives in a `TYPE_APPLICATION_OVERLAY` window, a special layer Android draws above every app, so other apps never know it is there.
 4. A custom `GlassView` paints the frame, and the frosted "No signal / Connecting / Camera offline" card.
-5. A boot receiver and a foreground service bring it back after a restart.
+5. A boot receiver starts a tiny idle service after a restart. It shows nothing until you press MENU twice.
 
 Because the camera is decoded by the app (not by the TV's single hardware video plane), it can run **at the same time** as YouTube or a film.
 
@@ -50,9 +52,15 @@ cd tv-floating-camera
 # 1. build, install, grant the overlay permission, start
 TV=<tv-ip>:5555 scripts/install.sh
 
-# 2. point it at your camera (the URL stays on the TV, never in this repo)
-TV=<tv-ip>:5555 scripts/set-camera.sh "rtsp://USER:PASS@CAMERA_OR_NVR_IP:554/PATH" "Front gate"
+# 2. add your cameras (the URLs stay on the TV, never in this repo)
+TV=<tv-ip>:5555 scripts/add-camera.sh "Front gate" "rtsp://USER:PASS@CAMERA_OR_NVR_IP:554/PATH"
+TV=<tv-ip>:5555 scripts/add-camera.sh "Driveway"   "rtsp://USER:PASS@CAMERA_OR_NVR_IP:554/PATH2"
+
+# 3. on the TV remote: press MENU twice quickly
 ```
+
+`install.sh` also switches on the small accessibility service that listens for the double MENU press.
+If you skip that, you can still open the window from the app icon ("CCTV Window") on the TV's home screen.
 
 Tip: use a **separate view-only account** for the TV, not your admin login.
 
@@ -68,24 +76,52 @@ It differs by brand. Check your device's manual. A few commonly documented forms
 
 Use the **sub-stream** (lower resolution) for a small window. It is lighter on Wi-Fi.
 
-## Controls
+## Controls (TV remote)
 
-Everything can be driven with `adb` intents:
+Press **MENU twice quickly** to open. The window shows its key help while it listens to the remote.
 
-| Action | Command (after `adb -s $TV shell am start-foreground-service -n com.camfloat.hdmi/.OverlayService`) |
-| --- | --- |
-| Show | `-a com.camfloat.hdmi.SHOW` |
-| Hide | `-a com.camfloat.hdmi.HIDE` |
-| Toggle | `-a com.camfloat.hdmi.TOGGLE` |
-| Set stream | `-a com.camfloat.hdmi.SET_URL --es url "rtsp://..." --es name "Label"` |
-| Move | `-a com.camfloat.hdmi.MOVE_TO --ei x 1400 --ei y 40` |
-| HDMI mode, port N | `-a com.camfloat.hdmi.SET_PORT --ei port N` (clear the URL first) |
+| Where | Key | What it does |
+| --- | --- | --- |
+| Small window | Left / Right | previous / next camera |
+| | Up / Down | bigger / smaller (4 sizes, remembered) |
+| | OK | full-screen view of all cameras |
+| | MENU (once) | move the window with the arrows, OK when placed |
+| | MENU (twice) | close the window completely |
+| | BACK | hand the remote back to the app below (window stays) |
+| All cameras (grid) | arrows | choose a camera (amber outline) |
+| | OK | open that camera full screen |
+| | BACK | back to the small window |
+| One camera, full screen | Left / Right | next camera |
+| | OK or BACK | back to the grid |
 
-The window is 360 × 240. Change `W`/`H`/`RADIUS`/`FRAME` in `OverlayService.java` for another size.
+The small window gives the remote back by itself after about 15 seconds without a key, so YouTube and everything else behave normally again. Press MENU twice again to take control.
 
-### Remote-control shortcut (experimental)
+## Controls (adb, for scripts and testing)
 
-`KeyService` is an accessibility service: **double-press MENU** to enter move mode, arrows to move, OK to hide, BACK to finish. It is implemented but **not verified on a real TV yet**, and you need to enable the service in Accessibility settings.
+```bash
+SVC="am start-foreground-service -n com.camfloat.hdmi/.OverlayService -a com.camfloat.hdmi"
+adb -s $TV shell "$SVC.OPEN"            # open and take the remote
+adb -s $TV shell "$SVC.SHOW"            # open, leave the remote alone
+adb -s $TV shell "$SVC.HIDE"            # close
+adb -s $TV shell "$SVC.ADD_CAMERA --es name 'Gate' --es url 'rtsp://...'"
+adb -s $TV shell "$SVC.CLEAR_CAMERAS"
+adb -s $TV shell "$SVC.MOVE_TO --ei x 1400 --ei y 40"
+adb -s $TV shell "$SVC.KEY --ei key 22"  # press an Android KEYCODE inside the window (22 = right)
+```
+
+An `hdmi://1` address (or no camera at all) shows the TV's HDMI input instead of a network camera.
+
+### If double MENU does nothing on your remote
+
+Remotes differ in which button sends the Android MENU key. To see what your remote sends:
+
+```bash
+adb -s $TV shell "$SVC.DEBUG_KEYS --ez on true"
+adb -s $TV logcat -s CamFloat      # press the button, read "key code N"
+adb -s $TV shell "$SVC.DEBUG_KEYS --ez on false"
+```
+
+MENU is code `82`. If your button sends another code, change `KEYCODE_MENU` in `KeyService.java`.
 
 ## Limitations and known issues
 
@@ -94,31 +130,35 @@ The window is 360 × 240. Change `W`/`H`/`RADIUS`/`FRAME` in `OverlayService.jav
 - **SRTP must be off** on the recorder, otherwise third-party players cannot read the stream.
 - **HDMI input mode** uses the TV Input Framework. It was only tested with no signal connected. On TVs with one hardware video plane (e.g. Amlogic) it may clash with other video, which is why RTSP is the recommended mode.
 - Debug-signed build. Sideload only.
-- One window, one stream at a time.
+- **Decoder budget.** Every camera in the grid needs its own video decoder. Five 640x480 H.264 sub-streams played together with YouTube on an Amlogic Android 9 TV, but the TV's CPU was busy while the grid was open. Use sub-streams, and expect fewer on weaker boxes.
+- Adb `input keyevent` is not delivered to accessibility key filters. To test the double-MENU shortcut without a remote, send key events to the remote's own input device (`sendevent`).
+- The double-MENU shortcut was not yet confirmed with the physical Mi remote's MENU button (see the debug steps above).
 
 ## Privacy and security
 
 - The stream URL (with its login) is saved only in the app's private storage **on your TV**. It is never in this repository, never logged, and not sent anywhere except to your own camera or recorder.
 - Prefer a dedicated **view-only** account for the TV.
-- The app needs: draw over other apps, internet (local network), foreground service, boot-completed. The optional accessibility service is only for the remote shortcut.
+- The app needs: draw over other apps, internet (local network), foreground service, boot-completed. The accessibility service is only for the remote shortcut: Android shows it every key press, it reacts to MENU (and to keys while the window is open), passes everything else through untouched, and logs nothing unless you switch on `DEBUG_KEYS`.
 - Keep your recorder off the internet: UPnP off, no port forwarding, current firmware.
 
 ## Project layout
 
 ```
 app/src/main/java/com/camfloat/hdmi/
-  OverlayService.java   window, RTSP player, HDMI input, position, state
-  GlassView.java        rounded glass frame + frosted status card
-  KeyService.java       optional remote-control move shortcut
-  BootReceiver.java     start at boot
-  MainActivity.java     launcher entry (asks for overlay permission)
-scripts/                install + set-camera helpers
+  OverlayService.java   window modes (small / move / grid / full screen), camera list, remote-key logic
+  Tile.java             one camera view: RTSP or HDMI video under a glass frame
+  Cam.java              a camera (name + address) and how the list is stored
+  GlassView.java        rounded glass frame, camera label, key-help pill, status card
+  KeyService.java       accessibility service: double-MENU opens, keys go to the window while open
+  BootReceiver.java     starts the idle service at boot (nothing is shown)
+  MainActivity.java     launcher entry: opens the window
+scripts/                install, add-camera, set-camera helpers
 docs/overview.png       illustrated overview
 ```
 
 ## Contributing
 
-Issues and pull requests are welcome. Ideas: cycle between several cameras with the remote, a small settings screen, multi-camera grid, H.265 support.
+Issues and pull requests are welcome. Ideas: a settings screen on the TV, paging for more than six cameras, H.265 support, a configurable shortcut key.
 
 ## License
 

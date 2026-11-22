@@ -29,6 +29,7 @@ public class GlassView extends View {
     private final Paint title = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint sub = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint hint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint label = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Path ring = new Path();
     private final Path tri = new Path();
     private final RectF outer = new RectF();
@@ -36,7 +37,9 @@ public class GlassView extends View {
     private final RectF tmp = new RectF();
 
     private int mode = NO_SIGNAL;
-    private boolean moving = false;
+    private boolean moving = false;   // accent (amber) outline: moving / selected
+    private String hintText = null;
+    private String labelText = null;
     private String titleText = "No signal";
     private String subText = "HDMI 1";
 
@@ -60,6 +63,8 @@ public class GlassView extends View {
         hint.setTextSize(15f);
         hint.setTextAlign(Paint.Align.CENTER);
         hint.setColor(0xFFFFFFFF);
+        label.setTypeface(medium);
+        label.setColor(0xFFFFFFFF);
     }
 
     void setMode(int m) {
@@ -69,11 +74,23 @@ public class GlassView extends View {
         }
     }
 
-    void setMoving(boolean on) {
+    void setAccent(boolean on) {
         if (moving != on) {
             moving = on;
             invalidate();
         }
+    }
+
+    /** Small pill at the bottom, e.g. key help. null hides it. */
+    void setHint(String s) {
+        hintText = s;
+        invalidate();
+    }
+
+    /** Camera name chip, top-left, shown while live. */
+    void setLabel(String s) {
+        labelText = s;
+        invalidate();
     }
 
     void setTexts(String t, String s) {
@@ -100,7 +117,8 @@ public class GlassView extends View {
         } else {
             drawCard(c, w, h);
         }
-        if (moving) drawMoveHint(c, w, h);
+        if (mode == LIVE && labelText != null) drawLabel(c);
+        if (hintText != null) drawHint(c, w, h);
     }
 
     // ---- live: slim frame -------------------------------------------------------------------
@@ -170,13 +188,35 @@ public class GlassView extends View {
         c.restore();
     }
 
-    private void drawMoveHint(Canvas c, float w, float h) {
-        String s = "Arrows move  •  OK hide  •  Back done";
-        float tw = hint.measureText(s) + 44f;
-        float th = 46f;
+    private void drawLabel(Canvas c) {
+        float ts = 14f;
+        label.setTextSize(ts);
+        float tw = label.measureText(labelText) + 24f;
+        float th = 26f;
+        float x = frameT + 8f, y = frameT + 8f;
+        tmp.set(x, y, x + tw, y + th);
+        fill.setColor(0x99000000);
+        c.drawRoundRect(tmp, th / 2f, th / 2f, fill);
+        c.drawText(labelText, x + 12f, y + th - 8f, label);
+    }
+
+    private void drawHint(Canvas c, float w, float h) {
+        float size = hint.getTextSize();
+        float tw = hint.measureText(hintText) + 44f;
+        float room = w - 24f;
+        float ts = 15f * Math.max(1f, Math.min(1.5f, w / 540f));
+        hint.setTextSize(ts);
+        tw = hint.measureText(hintText) + 44f;
+        while (tw > room && ts > 9f) {
+            ts -= 0.5f;
+            hint.setTextSize(ts);
+            tw = hint.measureText(hintText) + 44f;
+        }
+        float th = ts * 3f;
         tmp.set((w - tw) / 2f, h - th - 18f, (w + tw) / 2f, h - 18f);
+        fill.setShader(null);
         fill.setColor(0xCC000000);
         c.drawRoundRect(tmp, th / 2f, th / 2f, fill);
-        c.drawText(s, w / 2f, tmp.bottom - 14f, hint);
+        c.drawText(hintText, w / 2f, tmp.centerY() + ts * 0.36f, hint);
     }
 }

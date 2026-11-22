@@ -7,7 +7,7 @@ import android.os.Bundle;
 import android.provider.Settings;
 import android.widget.Toast;
 
-/** Launcher entry: starts the floating window (and asks for the overlay permission if needed). */
+/** Launcher entry: opens the CCTV window with the remote controls (and asks for the overlay permission if needed). */
 public class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle b) {
@@ -21,7 +21,7 @@ public class MainActivity extends Activity {
                 // some TV builds have no such screen: it can be granted over adb instead
             }
         } else {
-            startForegroundService(new Intent(this, OverlayService.class).setAction(OverlayService.ACTION_SHOW));
+            startForegroundService(new Intent(this, OverlayService.class).setAction(OverlayService.ACTION_OPEN));
         }
         finish();
     }

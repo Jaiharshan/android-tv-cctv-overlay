@@ -5,12 +5,12 @@ import android.content.Context;
 import android.content.Intent;
 import android.provider.Settings;
 
-/** Brings the floating window back after the TV boots. */
+/** After the TV boots, starts the idle service so the remote shortcut works. Nothing is shown. */
 public class BootReceiver extends BroadcastReceiver {
     @Override
     public void onReceive(Context ctx, Intent intent) {
         if (Settings.canDrawOverlays(ctx)) {
-            ctx.startForegroundService(new Intent(ctx, OverlayService.class).setAction(OverlayService.ACTION_SHOW));
+            ctx.startForegroundService(new Intent(ctx, OverlayService.class).setAction(OverlayService.ACTION_IDLE));
         }
     }
 }

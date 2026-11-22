@@ -10,6 +10,16 @@ adb connect "$TV" >/dev/null
 adb -s "$TV" install -r app/build/outputs/apk/debug/app-debug.apk
 # allow "display over other apps" (no settings screen needed)
 adb -s "$TV" shell appops set com.camfloat.hdmi SYSTEM_ALERT_WINDOW allow
+# start the (idle) service, and switch on the remote shortcut
 adb -s "$TV" shell am start-foreground-service \
-  -n com.camfloat.hdmi/.OverlayService -a com.camfloat.hdmi.SHOW
-echo "Installed. Now point it at a stream with scripts/set-camera.sh"
+  -n com.camfloat.hdmi/.OverlayService -a com.camfloat.hdmi.IDLE
+CUR=$(adb -s "$TV" shell settings get secure enabled_accessibility_services | tr -d '\r')
+KEY=com.camfloat.hdmi/com.camfloat.hdmi.KeyService
+case "$CUR" in
+  null|"") NEW=$KEY ;;
+  *"$KEY"*) NEW=$CUR ;;
+  *) NEW="$CUR:$KEY" ;;
+esac
+adb -s "$TV" shell settings put secure enabled_accessibility_services "$NEW"
+adb -s "$TV" shell settings put secure accessibility_enabled 1
+echo "Installed. Add cameras with scripts/add-camera.sh, then press MENU twice on the remote."
