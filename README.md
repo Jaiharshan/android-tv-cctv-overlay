@@ -132,7 +132,7 @@ MENU is code `82`. If your button sends another code, change `KEYCODE_MENU` in `
 - Debug-signed build. Sideload only.
 - **Decoder budget.** Every camera in the grid needs its own video decoder. Five 640x480 H.264 sub-streams played together with YouTube on an Amlogic Android 9 TV, but the TV's CPU was busy while the grid was open. Use sub-streams, and expect fewer on weaker boxes.
 - Adb `input keyevent` is not delivered to accessibility key filters. To test the double-MENU shortcut without a remote, send key events to the remote's own input device (`sendevent`).
-- The double-MENU shortcut was not yet confirmed with the physical Mi remote's MENU button (see the debug steps above).
+- The double-MENU shortcut was confirmed on a Mi TV with its stock Mi remote. Other remotes may send a different code (see the debug steps above).
 
 ## Privacy and security
 
