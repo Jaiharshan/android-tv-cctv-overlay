@@ -2,9 +2,9 @@
 
 A small, rounded **picture-in-picture camera window for Android TV**. It floats above whatever is on screen (YouTube, a film, the home screen) so you can keep an eye on a CCTV camera, baby cam, doorbell or any other live video while you watch something else.
 
-![Overview](docs/overview.png)
+![Overview: a live camera that floats over everything](docs/overview.jpg)
 
-![Three screens, one remote](docs/remote-controls.svg)
+![Three screens, one remote](docs/remote-controls.jpg)
 
 - **Opens only when you want it**: press MENU twice on the TV remote. Nothing runs or decodes while it is closed
 - **Several cameras, four sizes, one remote**: switch camera, resize, or open a full-screen view of all cameras, all with the normal TV remote
@@ -30,18 +30,7 @@ A small, rounded **picture-in-picture camera window for Android TV**. It floats 
                                   (Wi-Fi / LAN)       (this repo)
 ```
 
-```mermaid
-flowchart LR
-    CAM["IP camera"] --> NVR["Recorder (NVR)"]
-    NVR -- "RTSP over TCP,<br/>H.264 sub-stream" --> NET(("Home Wi-Fi / LAN"))
-    NET --> EXO["Media3 ExoPlayer<br/>(one per visible camera)"]
-    EXO -- "software-routed video" --> TEX["TextureView<br/>clipped to rounded corners"]
-    TEX --> GLASS["GlassView<br/>frame, label, key help"]
-    GLASS --> OV["Overlay window<br/>drawn above every app"]
-    REMOTE["TV remote"] -- "key presses" --> KEY["KeyService<br/>(accessibility service)"]
-    KEY -- "open / navigate" --> SVC["OverlayService<br/>modes and camera list"]
-    SVC --> OV
-```
+![How the picture gets to your screen](docs/architecture.jpg)
 
 1. The app asks for one video stream over **RTSP** (TCP) using [Media3 ExoPlayer](https://developer.android.com/media/media3/exoplayer).
 2. The picture is decoded **in software inside the app** and drawn on a `TextureView` clipped to a rounded outline.
@@ -125,22 +114,7 @@ The full-screen views stay up until you leave them (Back or HOME) and keep the T
 | A bug in the key handler | the key is passed through to the TV, never swallowed |
 
 
-```mermaid
-stateDiagram-v2
-    [*] --> Closed
-    Closed --> Small: Mi x2 (opens, takes the remote)
-    Small --> Small: Left/Right camera, Up/Down size
-    Small --> Move: Mi x1
-    Move --> Small: OK / Back
-    Small --> Grid: OK
-    Grid --> One: OK on the selected camera
-    One --> One: Left/Right next camera
-    One --> Grid: OK / Back
-    Grid --> Small: Back
-    Small --> Idle: Back, or 15 s without a key
-    Idle --> Small: Mi x2
-    Small --> Closed: Mi x2
-```
+![What the remote does: Closed, Small window, Idle, Move, All cameras, One camera](docs/state-machine.jpg)
 
 `Idle` means the window stays on screen but the remote belongs to the app underneath again.
 
@@ -203,7 +177,7 @@ app/src/main/java/com/camfloat/hdmi/
   ControlReceiver.java  adb-only entry point (permission DUMP) that forwards commands to the service
   MainActivity.java     launcher entry: opens the window
 scripts/                install, add-camera, set-camera helpers
-docs/overview.png       illustrated overview
+docs/                   pencil-sketch diagrams (overview, remote, architecture, states)
 ```
 
 ## Contributing
