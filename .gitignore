@@ -1,0 +1,15 @@
+# Gradle / Android build output
+.gradle/
+build/
+app/build/
+*.apk
+*.aab
+# Machine-specific, never commit
+local.properties
+*.jks
+*.keystore
+.idea/
+.DS_Store
+# Anything with credentials
+.env
+*.secret

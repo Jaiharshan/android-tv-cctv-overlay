@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">CCTV Window</string>
+    <string name="key_service_desc">Lets the CCTV window be moved with the remote: press Menu twice to move it, arrow keys to drag, OK to hide, Back to finish.</string>
+</resources>
