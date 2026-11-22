@@ -6,7 +6,7 @@
 #   TV=192.168.x.y:5555 scripts/add-camera.sh --clear
 set -euo pipefail
 : "${TV:?set TV=<tv-ip>:5555}"
-SVC="am start-foreground-service -n com.camfloat.hdmi/.OverlayService -a com.camfloat.hdmi"
+SVC="am broadcast -n com.camfloat.hdmi/.ControlReceiver -a com.camfloat.hdmi"
 if [ "${1:-}" = "--clear" ]; then
   adb -s "$TV" shell "$SVC.CLEAR_CAMERAS" >/dev/null
   echo "Camera list cleared."

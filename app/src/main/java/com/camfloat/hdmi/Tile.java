@@ -43,6 +43,18 @@ final class Tile extends FrameLayout {
             if (player != null) player.prepare();
         }
     };
+    /** A stream that neither plays nor fails (e.g. no free decoder) is restarted after 20 s. */
+    private final Runnable watchdog = new Runnable() {
+        @Override
+        public void run() {
+            if (player != null && player.getPlaybackState() != Player.STATE_READY) {
+                Log.w(TAG, "stuck, restarting: " + cam.name);
+                player.stop();
+                player.prepare();
+                h.postDelayed(this, 20000);
+            }
+        }
+    };
 
     Tile(Context c, Cam cam, int radius, int frame) {
         super(c);
@@ -87,6 +99,7 @@ final class Tile extends FrameLayout {
     void stop() {
         started = false;
         h.removeCallbacks(retry);
+        h.removeCallbacks(watchdog);
         if (player != null) {
             player.release();
             player = null;
@@ -131,10 +144,13 @@ final class Tile extends FrameLayout {
             @Override
             public void onPlaybackStateChanged(int state) {
                 if (state == Player.STATE_READY) {
+                    h.removeCallbacks(watchdog);
                     setLive(true);
                 } else if (state == Player.STATE_BUFFERING || state == Player.STATE_IDLE) {
                     setLive(false);
                     glass.setTexts("Connecting…", cam.name);
+                    h.removeCallbacks(watchdog);
+                    h.postDelayed(watchdog, 20000);
                 }
             }
 
@@ -143,6 +159,7 @@ final class Tile extends FrameLayout {
                 Log.w(TAG, "rtsp error (" + cam.name + "): " + e.getErrorCodeName());
                 setLive(false);
                 glass.setTexts("Camera offline", cam.name);
+                h.removeCallbacks(watchdog);
                 h.removeCallbacks(retry);
                 h.postDelayed(retry, 5000);
             }

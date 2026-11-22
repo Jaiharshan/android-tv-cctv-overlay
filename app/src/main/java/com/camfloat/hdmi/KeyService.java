@@ -39,15 +39,45 @@ public class KeyService extends AccessibilityService {
 
     @Override
     protected boolean onKeyEvent(KeyEvent e) {
+        try {
+            return handle(e);
+        } catch (RuntimeException ex) {   // never let a bug here break the TV's remote
+            Log.w("CamFloat", "key handling failed: " + ex);
+            return false;
+        }
+    }
+
+    private static boolean ours(int key) {
+        switch (key) {
+            case KeyEvent.KEYCODE_DPAD_UP:
+            case KeyEvent.KEYCODE_DPAD_DOWN:
+            case KeyEvent.KEYCODE_DPAD_LEFT:
+            case KeyEvent.KEYCODE_DPAD_RIGHT:
+            case KeyEvent.KEYCODE_DPAD_CENTER:
+            case KeyEvent.KEYCODE_ENTER:
+            case KeyEvent.KEYCODE_BACK:
+            case KeyEvent.KEYCODE_MENU:
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    private boolean handle(KeyEvent e) {
         int key = e.getKeyCode();
         if (key == MI_BUTTON) key = KeyEvent.KEYCODE_MENU;   // the "mi" button of the Mi remote sends code 189
         boolean down = e.getAction() == KeyEvent.ACTION_DOWN;
         OverlayService svc = OverlayService.instance;
-        if (OverlayService.debugKeys && down) Log.i("CamFloat", "key code " + key);
+        if (OverlayService.debugKeys && down) Log.i("CamFloat", "key code " + e.getKeyCode());
 
         if (svc != null && svc.capturing()) {
-            if (down && e.getRepeatCount() == 0) svc.onKey(key);
-            return true;   // the window owns the remote: swallow down, up and repeats
+            if (key == KeyEvent.KEYCODE_HOME) {   // HOME, volume, power etc. always reach the TV
+                if (down) svc.releaseToSmall();
+                return false;
+            }
+            if (!ours(key)) return false;
+            if (down && (e.getRepeatCount() == 0 || svc.allowsRepeat())) svc.onKey(key);
+            return true;   // our keys are swallowed (down, up and repeats)
         }
 
         if (key != KeyEvent.KEYCODE_MENU) return false;

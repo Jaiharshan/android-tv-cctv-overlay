@@ -18,6 +18,9 @@ android {
     buildTypes {
         release {
             minifyEnabled false
+            debuggable false
+            // sideloaded build: signed with the local debug key (no Play Store, no secrets in the repo)
+            signingConfig signingConfigs.debug
         }
     }
 

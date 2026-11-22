@@ -10,8 +10,8 @@ set -euo pipefail
 URL="${1-}"
 NAME="${2:-Camera}"
 adb connect "$TV" >/dev/null
-adb -s "$TV" shell am start-foreground-service \
-  -n com.camfloat.hdmi/.OverlayService \
+adb -s "$TV" shell am broadcast \
+  -n com.camfloat.hdmi/.ControlReceiver \
   -a com.camfloat.hdmi.SET_URL \
   --es url "$URL" --es name "$NAME" >/dev/null
 echo "Window pointed at: $NAME"

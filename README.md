@@ -103,6 +103,7 @@ Press **MENU twice quickly** to open (on the Mi remote, which has no Menu button
 | | MENU (once) | move the window with the arrows, OK when placed |
 | | MENU (twice) | close the window completely |
 | | BACK | hand the remote back to the app below (window stays) |
+| Any screen | HOME | leave full screen and hand the remote back; HOME itself still reaches the TV |
 | All cameras (grid) | arrows | choose a camera (amber outline) |
 | | OK | open that camera full screen |
 | | BACK | back to the small window |
@@ -110,6 +111,19 @@ Press **MENU twice quickly** to open (on the Mi remote, which has no Menu button
 | | OK or BACK | back to the grid |
 
 The small window gives the remote back by itself after about 15 seconds without a key, so YouTube and everything else behave normally again. Press MENU twice again to take control.
+The full-screen views stay up until you leave them (Back or HOME) and keep the TV awake, so the screensaver does not start while you are watching. Volume, HOME and power keys are never swallowed.
+
+### Safety nets
+
+| Situation | What happens |
+| --- | --- |
+| TV goes to standby | the window closes by itself (no stream keeps playing for a dark screen) |
+| Camera or Wi-Fi drops | the tile shows "Camera offline" and retries every 5 seconds |
+| A stream hangs on "Connecting" (for example no free decoder) | it is restarted after 20 seconds |
+| More than six cameras | the grid shows the first six (decoders are limited); every camera is still reachable with Left/Right |
+| Overlay permission revoked | the window refuses to open and shows a hint instead of crashing |
+| A bug in the key handler | the key is passed through to the TV, never swallowed |
+
 
 ```mermaid
 stateDiagram-v2
@@ -133,7 +147,7 @@ stateDiagram-v2
 ## Controls (adb, for scripts and testing)
 
 ```bash
-SVC="am start-foreground-service -n com.camfloat.hdmi/.OverlayService -a com.camfloat.hdmi"
+SVC="am broadcast -n com.camfloat.hdmi/.ControlReceiver -a com.camfloat.hdmi"
 adb -s $TV shell "$SVC.OPEN"            # open and take the remote
 adb -s $TV shell "$SVC.SHOW"            # open, leave the remote alone
 adb -s $TV shell "$SVC.HIDE"            # close
@@ -163,13 +177,14 @@ MENU is code `82`. If your button sends another code, change `KEYCODE_MENU` in `
 - **Passwords containing `@`** break URL parsing in Media3's RTSP client. Use a password without `@`.
 - **SRTP must be off** on the recorder, otherwise third-party players cannot read the stream.
 - **HDMI input mode** uses the TV Input Framework. It was only tested with no signal connected. On TVs with one hardware video plane (e.g. Amlogic) it may clash with other video, which is why RTSP is the recommended mode.
-- Debug-signed build. Sideload only.
+- Sideload only: the release build is signed with your local debug key (no Play Store).
 - **Decoder budget.** Every camera in the grid needs its own video decoder. Five 640x480 H.264 sub-streams played together with YouTube on an Amlogic Android 9 TV, but the TV's CPU was busy while the grid was open. Use sub-streams, and expect fewer on weaker boxes.
 - Adb `input keyevent` is not delivered to accessibility key filters. To test the double-MENU shortcut without a remote, send key events to the remote's own input device (`sendevent`).
 - The double-MENU shortcut was tested on a Mi TV; its stock Mi remote has no Menu button, so the "mi" button (code 189) is treated as MENU. Other remotes may send a different code (see the debug steps above).
 
 ## Privacy and security
 
+- The release build is **not debuggable**, `allowBackup` is off, and the service is **not exported**, so other apps cannot read or change the camera list. adb scripts go through a receiver protected by `android.permission.DUMP`, which only the shell and the system hold.
 - The stream URL (with its login) is saved only in the app's private storage **on your TV**. It is never in this repository, never logged, and not sent anywhere except to your own camera or recorder.
 - Prefer a dedicated **view-only** account for the TV.
 - The app needs: draw over other apps, internet (local network), foreground service, boot-completed. The accessibility service is only for the remote shortcut: Android shows it every key press, it reacts to MENU (and to keys while the window is open), passes everything else through untouched, and logs nothing unless you switch on `DEBUG_KEYS`.
@@ -185,6 +200,7 @@ app/src/main/java/com/camfloat/hdmi/
   GlassView.java        rounded glass frame, camera label, key-help pill, status card
   KeyService.java       accessibility service: double-MENU opens, keys go to the window while open
   BootReceiver.java     starts the idle service at boot (nothing is shown)
+  ControlReceiver.java  adb-only entry point (permission DUMP) that forwards commands to the service
   MainActivity.java     launcher entry: opens the window
 scripts/                install, add-camera, set-camera helpers
 docs/overview.png       illustrated overview

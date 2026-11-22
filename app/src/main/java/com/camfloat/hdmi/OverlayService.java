@@ -4,8 +4,10 @@ import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.Service;
+import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.graphics.PixelFormat;
@@ -59,7 +61,7 @@ public class OverlayService extends Service {
     private static final int STEP = 60;                    // pixels per arrow press while moving
     private static final long DOUBLE_MS = 400;              // double-MENU window
     private static final long CONTROL_TIMEOUT_MS = 15000;   // small window gives the remote back
-    private static final long FULL_TIMEOUT_MS = 90000;      // full-screen views fall back to the small window
+    private static final int MAX_GRID = 6;                  // decoders are limited: the grid shows at most 6 cameras
 
     static final int PIP = 0, MOVE = 1, GRID = 2, SINGLE = 3;
 
@@ -81,9 +83,9 @@ public class OverlayService extends Service {
     private final Runnable timeout = new Runnable() {
         @Override
         public void run() {
-            if (mode != PIP) {
+            if (mode == MOVE) {
                 mode = PIP;
-                build();
+                sp.edit().putInt("x", px).putInt("y", py).apply();
             }
             control = false;
             refreshHints();
@@ -100,10 +102,19 @@ public class OverlayService extends Service {
         }
     };
 
+    /** TV goes to standby: close the window so no stream keeps playing for a dark screen. */
+    private final BroadcastReceiver screenOff = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context c, Intent i) {
+            hide();
+        }
+    };
+
     @Override
     public void onCreate() {
         super.onCreate();
         instance = this;
+        registerReceiver(screenOff, new IntentFilter(Intent.ACTION_SCREEN_OFF));
         wm = (WindowManager) getSystemService(Context.WINDOW_SERVICE);
         sp = getSharedPreferences("cfg", MODE_PRIVATE);
         NotificationManager nm = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
@@ -129,13 +140,13 @@ public class OverlayService extends Service {
         } else if (ACTION_SET_URL.equals(a)) {
             List<Cam> one = new ArrayList<>();
             String u = intent.getStringExtra("url");
-            if (u != null && !u.isEmpty()) one.add(new Cam(intent.getStringExtra("name"), u));
+            if (isStreamUrl(u)) one.add(new Cam(intent.getStringExtra("name"), u));
             saveCams(one);
             cur = 0;
             rebuildIfShown();
         } else if (ACTION_ADD_CAMERA.equals(a)) {
             String u = intent.getStringExtra("url");
-            if (u != null && !u.isEmpty()) {
+            if (isStreamUrl(u)) {
                 List<Cam> l = loadCams();
                 Cam c = new Cam(intent.getStringExtra("name"), u);
                 for (int i = l.size() - 1; i >= 0; i--) if (l.get(i).name.equals(c.name)) l.remove(i);
@@ -171,6 +182,11 @@ public class OverlayService extends Service {
 
     @Override
     public void onDestroy() {
+        try {
+            unregisterReceiver(screenOff);
+        } catch (Exception ignored) {
+            // not registered
+        }
         hide();
         instance = null;
         super.onDestroy();
@@ -187,6 +203,10 @@ public class OverlayService extends Service {
         return l;
     }
 
+    private static boolean isStreamUrl(String u) {
+        return u != null && (u.startsWith("rtsp://") || u.startsWith("hdmi://"));
+    }
+
     private void saveCams(List<Cam> l) {
         sp.edit().putString("cams", Cam.serialize(l)).remove("url").remove("name").apply();
     }
@@ -196,6 +216,7 @@ public class OverlayService extends Service {
             cams = loadCams();
             if (cams.isEmpty()) cams.add(new Cam("HDMI 1", "hdmi://1"));
             cur = Math.min(cur, cams.size() - 1);
+            sel = Math.min(sel, gridCount() - 1);
             build();
         }
     }
@@ -242,7 +263,13 @@ public class OverlayService extends Service {
             lp.x = px;
             lp.y = py;
             clampPip();
-            wm.addView(box, lp);
+            try {
+                wm.addView(box, lp);
+            } catch (Exception e) {   // e.g. overlay permission revoked while running
+                Log.w(TAG, "open: " + e);
+                box = null;
+                return;
+            }
             build();
         }
         control = takeRemote;
@@ -280,10 +307,12 @@ public class OverlayService extends Service {
             lp.y = 0;
             lp.width = screenW;
             lp.height = screenH;
+            lp.flags |= WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON;   // no screensaver while watching
             box.setBackgroundColor(0xF7000000);
         } else {
             lp.width = SIZES[sizeIdx][0];
             lp.height = SIZES[sizeIdx][1];
+            lp.flags &= ~WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON;
             lp.x = px;
             lp.y = py;
             clampPip();
@@ -292,7 +321,7 @@ public class OverlayService extends Service {
         wm.updateViewLayout(box, lp);
 
         if (mode == GRID) {
-            int n = cams.size();
+            int n = gridCount();
             int cols = gridCols(n);
             int rows = (n + cols - 1) / cols;
             int gap = 24;
@@ -318,6 +347,10 @@ public class OverlayService extends Service {
         }
         for (Tile t : tiles) t.start();
         refreshHints();
+    }
+
+    private int gridCount() {
+        return Math.min(cams.size(), MAX_GRID);
     }
 
     private static int gridCols(int n) {
@@ -370,7 +403,29 @@ public class OverlayService extends Service {
                 break;
         }
         // re-arm after the key was handled: the new mode decides how long the remote stays ours
-        if (capturing()) arm(mode == PIP || mode == MOVE ? CONTROL_TIMEOUT_MS : FULL_TIMEOUT_MS);
+        if (capturing()) {
+            if (mode == PIP || mode == MOVE) arm(CONTROL_TIMEOUT_MS); else h.removeCallbacks(timeout);
+        }
+    }
+
+    /** Holding an arrow keeps moving the window. */
+    boolean allowsRepeat() {
+        return mode == MOVE;
+    }
+
+    /** HOME was pressed: leave full screen, give the remote back, keep the small window. */
+    void releaseToSmall() {
+        if (box == null) return;
+        h.removeCallbacks(timeout);
+        control = false;
+        if (mode != PIP) {
+            if (mode == MOVE) sp.edit().putInt("x", px).putInt("y", py).apply();
+            if (mode == GRID || mode == SINGLE) cur = Math.min(cur, cams.size() - 1);
+            mode = PIP;
+            build();
+        } else {
+            refreshHints();
+        }
     }
 
     private void arm(long ms) {
@@ -456,7 +511,7 @@ public class OverlayService extends Service {
     }
 
     private void gridKey(int key) {
-        int n = cams.size();
+        int n = gridCount();
         int cols = gridCols(n);
         int old = sel;
         switch (key) {
